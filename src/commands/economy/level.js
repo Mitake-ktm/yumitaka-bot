@@ -1,19 +1,9 @@
-const {
-  Client,
-  Interaction,
-  ApplicationCommandOptionType,
-  AttachmentBuilder,
-} = require('discord.js');
-const canvacord = require('canvacord');
+const { Font, RankCardBuilder } = require('canvacord');
+const { Client, Interaction, ApplicationCommandOptionType, AttachmentBuilder } = require('discord.js');
 const calculateLevelXp = require('../../utils/calculateLevelXp');
 const Level = require('../../models/Level');
 
 module.exports = {
-  /**
-   *
-   * @param {Client} client
-   * @param {Interaction} interaction
-   */
   callback: async (client, interaction) => {
     if (!interaction.inGuild()) {
       interaction.reply('You can only run this command inside a server.');
@@ -34,8 +24,8 @@ module.exports = {
     if (!fetchedLevel) {
       interaction.editReply(
         mentionedUserId
-          ? `${targetUserObj.user.tag} doesn't have any levels yet. Try again when they chat a little more.`
-          : "You don't have any levels yet. Chat a little more and try again."
+          ? `${targetUserObj.user.tag} doesn't have any levels yet.`
+          : "You don't have any levels yet."
       );
       return;
     }
@@ -53,21 +43,35 @@ module.exports = {
     });
 
     let currentRank = allLevels.findIndex((lvl) => lvl.userId === targetUserId) + 1;
+    Font.loadDefault();
 
-    const rank = new canvacord.Rank()
-      .setAvatar(targetUserObj.user.displayAvatarURL({ size: 256 }))
-      .setRank(currentRank)
-      .setLevel(fetchedLevel.level)
+    let avatarUrl = targetUserObj.user.displayAvatarURL({
+      size: 256,
+      dynamic: true,
+    });
+    
+    avatarUrl = avatarUrl.replace('.gif', '.png');
+    
+    const rankCard = new RankCardBuilder()
+      .setAvatar(avatarUrl)
       .setCurrentXP(fetchedLevel.xp)
       .setRequiredXP(calculateLevelXp(fetchedLevel.level))
-      .setStatus(targetUserObj.presence.status)
-      .setProgressBar('#FFC300', 'COLOR')
-      .setUsername(targetUserObj.user.username)
-      .setDiscriminator(targetUserObj.user.discriminator);
-
-    const data = await rank.build();
-    const attachment = new AttachmentBuilder(data);
+      .setLevel(fetchedLevel.level)
+      .setRank(currentRank)
+      .setStatus(targetUserObj.presence?.status || 'offline')
+      .setProgressCalculator((current, required) => (current / required) * 100)
+      .setStyles({
+        progressbar: {
+          track: { fill: '#333333' },
+          thumb: { fill: '#FFC300' },
+        },
+      });
+    
+    const data = await rankCard.build({ format: 'png' });
+    const attachment = new AttachmentBuilder(data, { name: 'rankCard.png' });
+    
     interaction.editReply({ files: [attachment] });
+    
   },
 
   name: 'level',
