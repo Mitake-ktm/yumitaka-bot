@@ -47,7 +47,6 @@ module.exports = async (client, message) => {
       }, 60000);
     }
 
-    // if (!level)
     else {
       // create new level
       const newLevel = new Level({

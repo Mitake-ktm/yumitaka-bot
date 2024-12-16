@@ -1,5 +1,5 @@
 const { Client, Interaction, ApplicationCommandOptionType, EmbedBuilder } = require('discord.js');
-const fetch = require('node-fetch');
+const fetch = import('node-fetch');
 
 async function recupererMotsAleatoiresAPI(nombreMots) {
     const url = `https://random-word-api.herokuapp.com/word?number=${nombreMots}`;

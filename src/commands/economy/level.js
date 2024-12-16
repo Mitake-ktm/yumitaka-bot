@@ -1,20 +1,12 @@
-const {
-  Client,
-  Interaction,
-  ApplicationCommandOptionType,
-  AttachmentBuilder,
-} = require('discord.js');
-const canvacord = require('canvacord');
+const {getProcessedAvatar, calculateRank} = require('../../utils/rankUtils')
+const { Font, RankCardBuilder } = require('canvacord');
+const { ApplicationCommandOptionType, AttachmentBuilder } = require('discord.js');
 const calculateLevelXp = require('../../utils/calculateLevelXp');
 const Level = require('../../models/Level');
 
 module.exports = {
-  /**
-   *
-   * @param {Client} client
-   * @param {Interaction} interaction
-   */
   callback: async (client, interaction) => {
+    try {
     if (!interaction.inGuild()) {
       interaction.reply('You can only run this command inside a server.');
       return;
@@ -26,6 +18,8 @@ module.exports = {
     const targetUserId = mentionedUserId || interaction.member.id;
     const targetUserObj = await interaction.guild.members.fetch(targetUserId);
 
+    Font.loadDefault();
+
     const fetchedLevel = await Level.findOne({
       userId: targetUserId,
       guildId: interaction.guild.id,
@@ -34,8 +28,8 @@ module.exports = {
     if (!fetchedLevel) {
       interaction.editReply(
         mentionedUserId
-          ? `${targetUserObj.user.tag} doesn't have any levels yet. Try again when they chat a little more.`
-          : "You don't have any levels yet. Chat a little more and try again."
+          ? `${targetUserObj.user.tag} n'a pas encore de niveau. Encourage-le à participer plus !`
+          : "tu n'as aucun niveau ici. Continue a parler pour en avoir"
       );
       return;
     }
@@ -52,22 +46,39 @@ module.exports = {
       }
     });
 
-    let currentRank = allLevels.findIndex((lvl) => lvl.userId === targetUserId) + 1;
-
-    const rank = new canvacord.Rank()
-      .setAvatar(targetUserObj.user.displayAvatarURL({ size: 256 }))
-      .setRank(currentRank)
-      .setLevel(fetchedLevel.level)
+    let avatarUrl = getProcessedAvatar(targetUserObj.user);
+    let currentRank = calculateRank(allLevels, targetUserId);
+    
+    const rankCard = new RankCardBuilder()
+      .setAvatar(avatarUrl)
       .setCurrentXP(fetchedLevel.xp)
       .setRequiredXP(calculateLevelXp(fetchedLevel.level))
-      .setStatus(targetUserObj.presence.status)
-      .setProgressBar('#FFC300', 'COLOR')
-      .setUsername(targetUserObj.user.username)
-      .setDiscriminator(targetUserObj.user.discriminator);
-
-    const data = await rank.build();
-    const attachment = new AttachmentBuilder(data);
+      .setLevel(fetchedLevel.level)
+      .setRank(currentRank)
+      .setStatus(targetUserObj.presence?.status || 'offline')
+      .setProgressCalculator((current, required) => (current / required) * 100)
+      .setBackground("#8e44ad")
+      .setStyles({
+        progressbar: {
+          track: { fill: '#333333', style: {
+            backgroundColor: "black",
+          } },
+          thumb: { fill: '#FFC300', style: {
+            backgroundColor: "#C585E6",
+          } },
+        },
+        
+      });
+    
+    const data = await rankCard.build({ format: 'png' });
+    const attachment = new AttachmentBuilder(data, { name: 'rankCard.png' });
+    
     interaction.editReply({ files: [attachment] });
+    
+  } catch(error){
+    console.error('Error executing the level command:', error);
+    interaction.editReply('Oups, une erreur est survenue en générant la carte. Réessaie plus tard ou contacte un admin.')
+  }
   },
 
   name: 'level',
